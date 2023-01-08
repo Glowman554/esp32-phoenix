@@ -1,10 +1,41 @@
 #include <spiffs.h>
 
 #include <stdio.h>
+#include <dirent.h>
+#include <string.h>
 #include "esp_log.h"
 #include "esp_spiffs.h"
 
 static const char* TAG = "spiffs";
+
+void spiffs_list_files(const char* base)
+{
+    char path[256] = { 0 };
+
+    DIR *dir = opendir(base);
+
+    if (!dir)
+    {
+        return;
+    }
+
+    struct dirent *dp;
+    while ((dp = readdir(dir)) != NULL)
+    {
+        if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0)
+        {
+            strcpy(path, base);
+            strcat(path, "/");
+            strcat(path, dp->d_name);
+
+            ESP_LOGI(TAG, "content: %s", path); 
+
+            spiffs_list_files(path);
+        }
+    }
+
+    closedir(dir);
+}
 
 void spiffs_mount()
 {
@@ -49,4 +80,6 @@ void spiffs_mount()
     {
         ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     }
+
+    spiffs_list_files("/spiffs");
 }

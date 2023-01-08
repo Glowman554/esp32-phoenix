@@ -66,17 +66,47 @@ void wifi_init_sta()
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &instance_got_ip));
 
+
+    FILE* connection_file = fopen("/spiffs/connection.txt", "r");
+    if (connection_file == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to open /spiffs/connection.txt");
+        vTaskDelete(NULL);
+    }
+
+    fseek(connection_file, 0, SEEK_END);
+    int sz = ftell(connection_file);
+    fseek(connection_file, 0, SEEK_SET);
+
+    char* connection = malloc(sz + 1);
+    memset(connection, 0, sz + 1);
+    fread(connection, 1, sz, connection_file);
+    fclose(connection_file);
+
+    char* ssid = connection;
+    char* password = NULL;
+    for (int i = 0; i < sz; i++)
+    {
+        if (connection[i] == ':')
+        {
+            connection[i] = '\0';
+            password = &connection[i + 1];
+        }
+    }
+
     wifi_config_t wifi_config =
     {
         .sta =
         {
-            .ssid = "MuellerVoss",
-            .password = "211415ssoVrelleuM",
-
             .threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
         }
     };
+
+    strcpy((char*) wifi_config.sta.ssid, ssid);
+    strcpy((char*) wifi_config.sta.password, password);
+
+    free(connection);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));

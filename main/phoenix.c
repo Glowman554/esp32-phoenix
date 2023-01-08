@@ -178,9 +178,9 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    xTaskCreate(wifi_task, "wifi", 0x4000, NULL, 1, NULL);
-
     spiffs_mount();
+
+    xTaskCreate(wifi_task, "wifi", 0x4000, NULL, 1, NULL);
 
     boot_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "boot");
     ESP_LOGI(TAG, "partition %s @ %p is %d bytes big", boot_partition->label, (void*) boot_partition->address, (int) boot_partition->size);
