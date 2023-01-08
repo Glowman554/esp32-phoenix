@@ -9,6 +9,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "nvs_flash.h"
 #include "esp_log.h"
 #include "esp_partition.h"
@@ -85,6 +86,35 @@ void cpu_io_write(uint16_t addr, uint8_t val)
     // silent(debugf("writing byte 0x%x to io at 0x%x", val, addr));
 }
 
+int intr_map[] = { 32, 33, 34, 35 }; 
+
+static QueueHandle_t gpio_evt_queue = NULL;
+
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    int gpio_num = (int) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+
+void cpu_intr_init()
+{
+    gpio_install_isr_service(0);
+
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+
+    for (int i = 0; i < sizeof(intr_map) / sizeof(intr_map[0]); i++)
+    {
+        ESP_LOGI(TAG, "(intr) phys %d => virt %d", intr_map[i], i);
+
+        gpio_reset_pin(intr_map[i]);
+        gpio_set_direction(intr_map[i], GPIO_MODE_INPUT);
+        gpio_set_intr_type(intr_map[i], GPIO_INTR_POSEDGE);
+        gpio_pulldown_en(intr_map[i]);
+        gpio_pullup_dis(intr_map[i]);
+        gpio_isr_handler_add(intr_map[i], gpio_isr_handler, (void*) i);
+    }
+}
+
 void wifi_task()
 {
     ESP_LOGI(TAG, "connecting to wifi...");
@@ -119,6 +149,16 @@ void run_task()
 		    debugf("%s", out);
         });
     #endif
+
+        int intr_num;
+        if(xQueueReceive(gpio_evt_queue, &intr_num, 0))
+        {
+        #if 0
+            ESP_LOGI(TAG, "intr @ virt %d", intr_num);
+        #endif
+            state.intr |= 1 << intr_num;
+        }
+
         // taskYIELD();
         // esp_task_wdt_reset();
     #if 0
@@ -163,6 +203,7 @@ void app_main(void)
     // fclose(boot);
 
     cpu_io_out_init();
+    cpu_intr_init();
 
     xTaskCreate(run_task, "run", 0x4000, NULL, 1, NULL);
 }
