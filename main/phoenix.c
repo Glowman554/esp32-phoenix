@@ -33,7 +33,7 @@ void cpu_write_byte(uint16_t addr, uint8_t val)
 	memory_[addr] = val;
 }
 
-int io_in_map[] = { 2 };
+int io_in_map[] = { 2, 4, 21, 22, 23, 25, 26, 27 };
 
 void cpu_io_in_init()
 {
