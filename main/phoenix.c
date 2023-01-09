@@ -26,16 +26,47 @@ uint8_t cpu_fetch_byte(uint16_t addr)
 	return memory_[addr];
 }
 
+
 void cpu_write_byte(uint16_t addr, uint8_t val)
 {
 	// silent(debugf("writing byte 0x%x at 0x%x", val, addr));
 	memory_[addr] = val;
 }
 
+int io_in_map[] = { 2 };
+
+void cpu_io_in_init()
+{
+    for (int i = 0; i < sizeof(io_in_map) / sizeof(io_in_map[0]); i++)
+    {
+        ESP_LOGI(TAG, "(in) phys %d => virt %d", io_in_map[i], i);
+
+        gpio_reset_pin(io_in_map[i]);
+        gpio_set_direction(io_in_map[i], GPIO_MODE_INPUT);
+        gpio_pulldown_en(io_in_map[i]);
+        gpio_pullup_dis(io_in_map[i]);
+    }
+}
+
 uint8_t cpu_io_read(uint16_t addr)
 {
 	// silent(debugf("reading byte from io at 0x%x", addr));
-    return 0;
+    switch (addr) {
+        case 0x0:
+            uint8_t in = 0;
+            for (int i = 0; i < sizeof(io_in_map) / sizeof(io_in_map[0]); i++)
+            {
+                if (gpio_get_level(io_in_map[i]))
+                {
+                    in |= 1 << i;
+                }
+            }
+            return in;
+        default:
+            silent(debugf("invalid io address %x", addr));
+            return 0x0;
+    }
+
 }
 
 #define OUT_CLK 5
@@ -203,6 +234,7 @@ void app_main(void)
     // fclose(boot);
 
     cpu_io_out_init();
+    cpu_io_in_init();
     cpu_intr_init();
 
     xTaskCreate(run_task, "run", 0x4000, NULL, 1, NULL);
